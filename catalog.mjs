@@ -67,21 +67,33 @@ export function sortOffers(offers, order) {
   );
 }
 
-export function summarizeOffers(offers) {
-  const available = offers.filter(offer => offer.state === 'available');
-  const best = sortOffers(available, 'price').find(offer => offer.price !== null) ?? null;
-  return { availableCount: available.length, best };
+export function getOfferFreshness(offer, now = Date.now()) {
+  const price = getFreshness(offer.priceUpdatedAt, now);
+  const stock = getFreshness(offer.stockUpdatedAt, now);
+  return { price, stock, currentState: stock && !stock.stale ? offer.state : 'unknown' };
 }
 
-export function getResults(query, filters, order) {
+export function summarizeOffers(offers, now = Date.now()) {
+  const available = offers.filter(offer => offer.state === 'available');
+  const published = sortOffers(available.filter(offer => offer.price !== null), 'price');
+  const bestRecorded = published[0] ?? null;
+  const current = available.filter(offer => getOfferFreshness(offer, now).currentState === 'available');
+  const bestCurrent = sortOffers(current, 'price').find(offer => {
+    const { price } = getOfferFreshness(offer, now);
+    return offer.price !== null && price && !price.stale;
+  }) ?? null;
+  return { availableCount: available.length, currentCount: current.length, bestRecorded, bestCurrent };
+}
+
+export function getResults(query, filters, order, now = Date.now()) {
   return findProducts(query)
     .map(product => {
       const offers = getOffers(product, filters);
-      return { product, offers, ...summarizeOffers(offers) };
+      return { product, offers, ...summarizeOffers(offers, now) };
     })
     .filter(result => result.offers.length)
     .sort((a, b) =>
-      (order === 'price' ? comparePrices(a.best?.price ?? null, b.best?.price ?? null) : 0) ||
+      (order === 'price' ? comparePrices(a.bestRecorded?.price ?? null, b.bestRecorded?.price ?? null) : 0) ||
       alphabet.compare(a.product.name, b.product.name) ||
       alphabet.compare(a.product.strength, b.product.strength)
     );
@@ -89,8 +101,8 @@ export function getResults(query, filters, order) {
 
 export function getFreshness(value, now = Date.now()) {
   const timestamp = value ? Date.parse(value) : NaN;
-  if (!Number.isFinite(timestamp)) return null;
-  const minutes = Math.floor(Math.max(0, now - timestamp) / 60000);
+  if (!Number.isFinite(timestamp) || timestamp > now) return null;
+  const minutes = Math.floor((now - timestamp) / 60000);
   const days = Math.floor(minutes / 1440);
   const hours = Math.floor(minutes / 60);
   const label = days ? relative.format(-days, 'day')

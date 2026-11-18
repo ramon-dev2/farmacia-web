@@ -1,6 +1,6 @@
 import { createElement as h, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { branches, getFreshness, getResults, products, sortOffers, states } from './catalog.mjs';
+import { branches, getFreshness, getOfferFreshness, getResults, products, sortOffers, states } from './catalog.mjs';
 
 const currency = new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP' });
 const date = new Intl.DateTimeFormat('es-DO', {
@@ -18,7 +18,6 @@ const iconPaths = {
   unknown: 'M12 17h.01M9 9a3 3 0 1 1 4.2 2.7c-.7.3-1.2.8-1.2 1.8',
   chevron: 'm6 9 6 6 6-6',
   clock: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0ZM12 6v6l4 2',
-  catalog: 'M4 6h16M4 12h16M4 18h16',
   pin: 'M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0ZM15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
   stock: 'M4 7l8-4 8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v10',
   sort: 'M8 4v16m-4-4 4 4 4-4m3-10h5m-5 6h4m-4 6h3',
@@ -41,8 +40,8 @@ function Status({ state, children }) {
   );
 }
 
-function Timestamp({ label, value }) {
-  const freshness = getFreshness(value);
+function Timestamp({ label, value, now }) {
+  const freshness = getFreshness(value, now);
   return h('div', { className: 'timestamp' },
     h('dt', null, label),
     h('dd', null, freshness
@@ -52,27 +51,35 @@ function Timestamp({ label, value }) {
   );
 }
 
-function Offer({ offer, isBest }) {
+function Offer({ offer, highlight, group, now }) {
   const { branch, price, state, priceUpdatedAt, stockUpdatedAt } = offer;
-  const stale = [priceUpdatedAt, stockUpdatedAt].some(value => getFreshness(value)?.stale);
-  return h('li', { className: isBest ? 'offer offer-best' : 'offer' },
+  const freshness = getOfferFreshness(offer, now);
+  const historicalStock = freshness.currentState === 'unknown' && state !== 'unknown';
+  const oldPrice = price !== null && (!freshness.price || freshness.price.stale);
+
+  return h('li', { className: 'offer' + (highlight ? ' offer-' + highlight : '') },
     h('div', { className: 'offer-heading' },
-      h('h4', null, branch.name),
-      h('p', { className: 'muted' }, branch.city, ' · ', branch.area),
+      h('div', null, h('h4', null, branch.name),
+        h('p', { className: 'muted' }, branch.city, ' · ', branch.area)),
+      h('div', { className: 'offer-value' },
+        h('strong', { className: price === null ? 'no-price' : 'offer-price' },
+          price === null ? 'Sin precio publicado' : currency.format(price)),
+        oldPrice && h('small', { className: 'stale' }, freshness.price ? 'Precio antiguo' : 'Precio sin fecha'),
+      ),
     ),
-    h('div', { className: 'offer-value' },
-      h('strong', { className: price === null ? 'no-price' : 'offer-price' },
-        price === null ? 'Sin precio publicado' : currency.format(price)),
-      h(Status, { state }),
+    h('div', { className: 'offer-stock' },
+      h(Status, { state: freshness.currentState }, historicalStock ? 'Inventario sin vigencia confirmada' : undefined),
+      historicalStock && h('p', { className: 'stale' }, h(Icon, { name: 'clock' }),
+        'Registro: ', states[state].toLowerCase(), freshness.stock ? ' · ' + freshness.stock.label : ' · sin fecha'),
     ),
-    isBest && h('p', { className: 'best-label' }, h(Icon, { name: 'available' }), 'Menor precio disponible'),
-    h('dl', { className: 'timestamps' },
-      h(Timestamp, { label: 'Precio actualizado', value: priceUpdatedAt }),
-      h(Timestamp, { label: 'Inventario actualizado', value: stockUpdatedAt }),
-    ),
-    stale && h('p', { className: 'stale' }, h(Icon, { name: 'clock' }), 'Algún dato tiene 7 días o más'),
-    h('details', { className: 'branch-details' },
-      h('summary', null, 'Información de la sucursal'),
+    highlight && h('p', { className: 'best-label' }, highlight === 'best'
+      ? 'Menor precio con datos recientes' : 'Menor precio registrado'),
+    h('details', { className: 'branch-details', name: group },
+      h('summary', { 'aria-label': 'Ver detalles de ' + branch.name }, 'Ver detalles'),
+      h('dl', { className: 'timestamps' },
+        h(Timestamp, { label: 'Precio actualizado', value: priceUpdatedAt, now }),
+        h(Timestamp, { label: 'Inventario actualizado', value: stockUpdatedAt, now }),
+      ),
       h('p', null, 'Horario de muestra · ', branch.hours),
       h('p', null, 'Teléfono sin publicar'),
     ),
@@ -88,16 +95,10 @@ function Select({ label, icon, value, onChange, options }) {
   );
 }
 
-function UnavailableSummary({ offers, availableCount }) {
-  if (availableCount) return h('strong', null, 'Sin precio publicado para las sucursales disponibles');
-  return h('strong', null, offers.every(offer => offer.state === 'out')
-    ? 'Agotado en estas sucursales' : 'Sin disponibilidad confirmada');
-}
-
-function Product({ result }) {
-  const { product, offers, availableCount, best } = result;
+function Product({ result, now }) {
+  const { product, offers, availableCount, currentCount, bestRecorded, bestCurrent } = result;
   const [offerOrder, setOfferOrder] = useState('price');
-  const summaryState = availableCount ? 'available' : offers.every(offer => offer.state === 'out') ? 'out' : 'unknown';
+  const best = bestCurrent ?? bestRecorded;
   const titleId = 'product-' + product.id;
 
   return h('article', { className: 'product', 'aria-labelledby': titleId },
@@ -110,27 +111,33 @@ function Product({ result }) {
       ),
     ),
     h('div', { className: 'product-availability' },
-      h(Status, { state: summaryState },
-        availableCount + (availableCount === 1 ? ' sucursal disponible' : ' sucursales disponibles')),
+      h(Status, { state: currentCount ? 'available' : 'unknown' },
+        currentCount
+          ? currentCount + (currentCount === 1 ? ' sucursal con inventario reciente' : ' sucursales con inventario reciente')
+          : 'Sin disponibilidad vigente confirmada'),
+      availableCount !== currentCount && h('p', { className: 'registered-count' },
+        'Registro de disponibilidad en ', availableCount, availableCount === 1 ? ' sucursal' : ' sucursales'),
     ),
     h('div', { className: 'product-value' }, best
       ? h('div', null,
-        h('p', { className: 'price-label' }, 'Menor precio disponible'),
-        h('strong', { className: 'product-price' }, currency.format(best.price)),
+        h('p', { className: 'price-label' }, bestCurrent ? 'Menor precio con datos recientes' : 'Menor precio registrado'),
+        h('strong', { className: 'product-price' + (bestCurrent ? '' : ' price-recorded') }, currency.format(best.price)),
         h('p', { className: 'best-branch' }, h(Icon, { name: 'pin' }), best.branch.name),
       )
-      : h(UnavailableSummary, { offers, availableCount })),
+      : h('strong', null, availableCount
+        ? 'Sin precio publicado para las sucursales con registro de disponibilidad'
+        : 'Sin precio asociado a disponibilidad registrada')),
     h('details', { className: 'comparison' },
       h('summary', { 'aria-label': 'Comparar sucursales para ' + product.name + ' ' + product.strength },
         h(Icon, { name: 'compare' }), 'Comparar sucursales', h(Icon, { name: 'chevron' })),
       h('div', { className: 'comparison-content' },
         !best && h('p', { className: 'comparison-note' }, h(Icon, { name: 'info' }),
-          'Ninguna sucursal de esta consulta reúne precio publicado y disponibilidad confirmada.'),
+          'Ninguna oferta tiene a la vez precio publicado y registro de disponibilidad.'),
         offers.length > 1 && h(Select, { label: 'Ordenar sucursales', value: offerOrder,
           onChange: setOfferOrder, options: [['price', 'Menor precio'], ['name', 'Nombre de sucursal']] }),
         h('ul', { className: 'offers' }, sortOffers(offers, offerOrder).map(offer =>
-          h(Offer, { key: offer.branch.id, offer,
-            isBest: best !== null && offer.state === 'available' && offer.price === best.price }))),
+          h(Offer, { key: offer.branch.id, offer, group: 'offers-' + product.id, now,
+            highlight: offer === best ? (bestCurrent ? 'best' : 'recorded') : undefined }))),
       ),
     ),
   );
@@ -164,19 +171,25 @@ function Search({ id, query, setQuery, onSubmit, variant }) {
       query && h('button', { type: 'button', className: 'icon-button', onClick: clear,
         'aria-label': 'Limpiar búsqueda' }, h(Icon, { name: 'close' })),
     ),
-    h('button', { type: 'submit', className: 'button button-primary' }, 'Buscar'),
+    h('button', { type: 'submit', className: variant === 'hero' ? 'button button-primary' : 'button button-secondary' }, 'Buscar'),
   );
 }
 
 function App() {
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(defaults);
+  const [now, setNow] = useState(Date.now);
   const { city, branchId, availability, order } = filters;
-  const results = getResults(query, filters, order);
+  const results = getResults(query, filters, order, now);
   const hasQuery = Boolean(query.trim());
   const hasFilters = Boolean(city || branchId || availability);
   const hasChanges = Boolean(query || hasFilters || order !== defaults.order);
   const branchOptions = branches.filter(branch => !city || branch.city === city);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     document.dispatchEvent(new Event('catalog-ready'));
@@ -214,8 +227,7 @@ function App() {
       h('a', { href: './', className: 'brand' },
         h('img', { src: './logo-web.svg', alt: 'FarmaciaRD, inicio', width: 300, height: 208 })),
       h('nav', { 'aria-label': 'Navegación principal' },
-        h('a', { href: '#catalogo', className: 'nav-link', onClick: () => goTo('catalog-title') },
-          h(Icon, { name: 'catalog' }), 'Catálogo')),
+        h('a', { href: '#catalogo', className: 'nav-link', onClick: () => goTo('catalog-title') }, 'Catálogo')),
     )),
     h('main', null,
       h('section', { className: 'hero', 'aria-labelledby': 'title' },
@@ -243,11 +255,11 @@ function App() {
               options: [['', 'Todas las ciudades'], ...cities.map(name => [name, name])] }),
             h(Select, { label: 'Sucursal', icon: 'pin', value: branchId, onChange: value => changeFilter('branchId', value),
               options: [['', 'Todas las sucursales'], ...branchOptions.map(({ id, name }) => [id, name])] }),
-            h(Select, { label: 'Disponibilidad', icon: 'stock', value: availability,
+            h(Select, { label: 'Disponibilidad registrada', icon: 'stock', value: availability,
               onChange: value => changeFilter('availability', value),
               options: [['', 'Todos los estados'], ...Object.entries(states)] }),
             h(Select, { label: 'Orden del catálogo', icon: 'sort', value: order, onChange: value => changeFilter('order', value),
-              options: [['name', 'Nombre A–Z'], ['price', 'Menor precio disponible']] }),
+              options: [['name', 'Nombre A–Z'], ['price', 'Menor precio registrado']] }),
           ),
         ),
         h('div', { className: 'results-bar' },
@@ -258,7 +270,7 @@ function App() {
             h(Icon, { name: 'reset' }), 'Restablecer todo'),
         ),
         results.length ? h('div', { className: 'products' }, results.map(result =>
-          h(Product, { key: result.product.id, result })))
+          h(Product, { key: result.product.id, result, now })))
           : h('div', { className: 'empty' },
             h(Icon, { name: 'search' }),
             h('h3', null, hasFilters ? 'Ninguna presentación coincide con estos filtros' : 'No encontramos ese medicamento'),
