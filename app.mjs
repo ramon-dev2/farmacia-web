@@ -47,6 +47,7 @@ function Product({ product, offers }) {
   const lowest = availablePrices.length ? Math.min(...availablePrices) : null;
 
   return h('article', { className: 'product' },
+    h('div', { className: 'product-image', 'data-product': product.id, 'aria-hidden': true }),
     h('div', { className: 'product-title' },
       h('span', { className: 'product-form' }, product.form),
       h('h3', null, product.name, ' ', product.strength),
@@ -114,7 +115,7 @@ function App() {
         ),
       ),
       h('section', { id: 'catalogo', className: 'shell catalog', 'aria-labelledby': 'catalog-title' },
-        h('p', { className: 'notice' }, h('strong', null, 'Demostración. '), 'Los precios, inventarios y sucursales son ficticios.'),
+        h('p', { className: 'notice' }, h('strong', null, 'Demostración. '), 'Los empaques, precios, inventarios y sucursales son ficticios.'),
         h('h2', { id: 'catalog-title', tabIndex: -1 }, query.trim() ? 'Resultados de búsqueda' : 'Catálogo de medicamentos'),
         h('div', { className: 'filters' },
           h(Filter, { label: 'Sucursal', value: branch, onChange: setBranch,
