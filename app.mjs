@@ -17,7 +17,6 @@ const iconPaths = {
   out: 'M6 12h12',
   unknown: 'M12 17h.01M9 9a3 3 0 1 1 4.2 2.7c-.7.3-1.2.8-1.2 1.8',
   chevron: 'm6 9 6 6 6-6',
-  clock: 'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0ZM12 6v6l4 2',
   pin: 'M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0ZM15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
   stock: 'M4 7l8-4 8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v10',
   sort: 'M8 4v16m-4-4 4 4 4-4m3-10h5m-5 6h4m-4 6h3',
@@ -36,7 +35,7 @@ function Icon({ name }) {
 
 function Status({ state, children }) {
   return h('span', { className: 'status ' + state },
-    h(Icon, { name: state }), children ?? states[state],
+    h(Icon, { name: state }), h('span', null, children ?? states[state]),
   );
 }
 
@@ -55,33 +54,39 @@ function Offer({ offer, highlight, group, now }) {
   const { branch, price, state, priceUpdatedAt, stockUpdatedAt } = offer;
   const freshness = getOfferFreshness(offer, now);
   const historicalStock = freshness.currentState === 'unknown' && state !== 'unknown';
-  const oldPrice = price !== null && (!freshness.price || freshness.price.stale);
+  const priceNotice = price === null ? null : !freshness.price ? 'Precio sin fecha'
+    : freshness.price.stale ? 'Precio antiguo' : null;
+  const inventoryNotice = historicalStock
+    ? freshness.stock ? 'Inventario antiguo' : 'Inventario sin fecha' : null;
+  const updateLabel = inventoryNotice ?? [states[freshness.currentState], priceNotice].filter(Boolean).join(' · ');
 
   return h('li', { className: 'offer' + (highlight ? ' offer-' + highlight : '') },
-    h('div', { className: 'offer-heading' },
-      h('div', null, h('h4', null, branch.name),
-        h('p', { className: 'muted' }, branch.city, ' · ', branch.area)),
-      h('div', { className: 'offer-value' },
-        h('strong', { className: price === null ? 'no-price' : 'offer-price' },
-          price === null ? 'Sin precio publicado' : currency.format(price)),
-        oldPrice && h('small', { className: 'stale' }, freshness.price ? 'Precio antiguo' : 'Precio sin fecha'),
-      ),
-    ),
-    h('div', { className: 'offer-stock' },
-      h(Status, { state: freshness.currentState }, historicalStock ? 'Inventario sin vigencia confirmada' : undefined),
-      historicalStock && h('p', { className: 'stale' }, h(Icon, { name: 'clock' }),
-        'Registro: ', states[state].toLowerCase(), freshness.stock ? ' · ' + freshness.stock.label : ' · sin fecha'),
-    ),
-    highlight && h('p', { className: 'best-label' }, highlight === 'best'
-      ? 'Menor precio con datos recientes' : 'Menor precio registrado'),
     h('details', { className: 'branch-details', name: group },
-      h('summary', { 'aria-label': 'Ver detalles de ' + branch.name }, 'Ver detalles'),
-      h('dl', { className: 'timestamps' },
-        h(Timestamp, { label: 'Precio actualizado', value: priceUpdatedAt, now }),
-        h(Timestamp, { label: 'Inventario actualizado', value: stockUpdatedAt, now }),
+      h('summary', { className: 'offer-row' + (price === null ? ' offer-row-unpriced' : '') },
+        h('span', { className: 'offer-branch' },
+          h('strong', null, branch.name),
+          h('span', { className: 'offer-location' }, branch.city, ' · ', branch.area),
+        ),
+        price === null
+          ? h('span', { className: 'no-price' }, 'Sin precio publicado')
+          : h('span', { className: 'offer-value' },
+            h('strong', { className: 'offer-price' }, currency.format(price)),
+            highlight && h('small', { className: 'best-label' }, 'Menor registrado')),
+        h('span', { className: 'offer-update' },
+          h(Status, { state: priceNotice || inventoryNotice ? 'unknown' : freshness.currentState }, updateLabel)),
+        h('span', { className: 'offer-toggle' }, 'Ver detalles', h(Icon, { name: 'chevron' })),
       ),
-      h('p', null, 'Horario de muestra · ', branch.hours),
-      h('p', null, 'Teléfono sin publicar'),
+      h('div', { className: 'offer-detail' },
+        historicalStock && h('p', null, 'Inventario sin vigencia confirmada. Último estado registrado: ',
+          states[state].toLowerCase(), '.'),
+        priceNotice && h('p', null, priceNotice, '.'),
+        h('dl', { className: 'timestamps' },
+          h(Timestamp, { label: 'Precio actualizado', value: priceUpdatedAt, now }),
+          h(Timestamp, { label: 'Inventario actualizado', value: stockUpdatedAt, now }),
+        ),
+        h('p', null, 'Horario de muestra · ', branch.hours),
+        h('p', null, 'Teléfono sin publicar'),
+      ),
     ),
   );
 }
@@ -137,7 +142,7 @@ function Product({ result, now }) {
           onChange: setOfferOrder, options: [['price', 'Menor precio'], ['name', 'Nombre de sucursal']] }),
         h('ul', { className: 'offers' }, sortOffers(offers, offerOrder).map(offer =>
           h(Offer, { key: offer.branch.id, offer, group: 'offers-' + product.id, now,
-            highlight: offer === best ? (bestCurrent ? 'best' : 'recorded') : undefined }))),
+            highlight: offer === bestRecorded ? (offer === bestCurrent ? 'best' : 'recorded') : undefined }))),
       ),
     ),
   );
