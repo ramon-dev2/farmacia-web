@@ -6,6 +6,7 @@ const currency = new Intl.NumberFormat('es-DO', { style: 'currency', currency: '
 const date = new Intl.DateTimeFormat('es-DO', {
   dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Santo_Domingo',
 });
+const suggestions = ['Acetaminofén', 'Ibuprofeno', 'Loratadina'];
 
 function Timestamp({ label, value }) {
   return h('small', null, label, ' · ', value
@@ -39,6 +40,29 @@ function Filter({ label, value, onChange, options }) {
   );
 }
 
+function Product({ product, offers }) {
+  const availablePrices = offers
+    .filter(({ state, price }) => state === 'available' && price !== null)
+    .map(({ price }) => price);
+  const lowest = availablePrices.length ? Math.min(...availablePrices) : null;
+
+  return h('article', { className: 'product' },
+    h('div', { className: 'product-title' },
+      h('span', { className: 'product-form' }, product.form),
+      h('h3', null, product.name, ' ', product.strength),
+      h('p', null, product.pack),
+    ),
+    h('div', { className: 'product-price' },
+      h('strong', null, lowest === null ? 'Sin precio disponible' : 'Desde ' + currency.format(lowest)),
+      h('small', null, offers.length, offers.length === 1 ? ' sucursal en la consulta' : ' sucursales en la consulta'),
+    ),
+    h('details', { className: 'comparison' },
+      h('summary', null, 'Ver precios por sucursal'),
+      h('div', { className: 'offers' }, offers.map(offer => h(Offer, { key: offer.branch.id, offer }))),
+    ),
+  );
+}
+
 function App() {
   const [query, setQuery] = useState('');
   const [branch, setBranch] = useState('');
@@ -56,6 +80,11 @@ function App() {
     setSort('branch');
   }
 
+  function goToCatalog() {
+    document.getElementById('catalog-title').focus();
+    document.getElementById('catalogo').scrollIntoView();
+  }
+
   return h('div', null,
     h('header', { className: 'header' }, h('div', { className: 'shell header-inner' },
       h('a', { href: './', className: 'brand' }, h('span', { 'aria-hidden': true }, '+'), 'FarmaciaRD'),
@@ -64,21 +93,30 @@ function App() {
     h('main', null,
       h('section', { className: 'hero', 'aria-labelledby': 'title' },
         h('div', { className: 'shell hero-inner' },
-          h('div', null,
-            h('p', { className: 'eyebrow' }, 'FARMACIARD / CATÁLOGO'),
-            h('h1', { id: 'title' }, 'Encuentra tu medicamento.', h('br'), 'Compara por sucursal.'),
-            h('p', { className: 'subtitle' }, 'Consulta el precio, la disponibilidad y cuándo se actualizó cada dato.'),
+          h('h1', { id: 'title' }, 'Compara precios de medicamentos'),
+          h('p', { className: 'subtitle' }, 'Consulta precios y disponibilidad por sucursal en República Dominicana.'),
+          h('form', { role: 'search', className: 'search', onSubmit: event => {
+            event.preventDefault();
+            goToCatalog();
+          } },
+            h('label', { className: 'sr-only', htmlFor: 'medicine-search' }, 'Buscar medicamento'),
+            h('input', { id: 'medicine-search', type: 'search', placeholder: 'Ej. acetaminofén 500 mg',
+              value: query, onChange: event => setQuery(event.target.value) }),
+            h('button', { type: 'submit' }, 'Buscar'),
           ),
-          h('div', { className: 'hero-art', 'aria-hidden': true }, h('span', null, '+')),
+          h('div', { className: 'suggestions' },
+            h('span', null, 'Prueba con'),
+            suggestions.map(name => h('button', { key: name, type: 'button', onClick: () => {
+              setQuery(name);
+              goToCatalog();
+            } }, name)),
+          ),
         ),
       ),
       h('section', { id: 'catalogo', className: 'shell catalog', 'aria-labelledby': 'catalog-title' },
         h('p', { className: 'notice' }, h('strong', null, 'Demostración. '), 'Los precios, inventarios y sucursales son ficticios.'),
-        h('h2', { id: 'catalog-title' }, 'Explora el catálogo'),
+        h('h2', { id: 'catalog-title', tabIndex: -1 }, query.trim() ? 'Resultados de búsqueda' : 'Catálogo de medicamentos'),
         h('div', { className: 'filters' },
-          h('label', null, 'Buscar medicamento',
-            h('input', { type: 'search', placeholder: 'Ej. acetaminofén 500 mg', value: query,
-              onChange: event => setQuery(event.target.value) })),
           h(Filter, { label: 'Sucursal', value: branch, onChange: setBranch,
             options: [['', 'Todas las sucursales'], ...branches.map(({ id, name }) => [id, name])] }),
           h(Filter, { label: 'Disponibilidad', value: availability, onChange: setAvailability,
@@ -90,15 +128,9 @@ function App() {
           h('p', { role: 'status' }, results.length, results.length === 1 ? ' presentación' : ' presentaciones'),
           h('button', { type: 'button', onClick: clearFilters }, 'Limpiar filtros'),
         ),
-        results.length ? results.map(({ product, offers }) =>
-          h('section', { className: 'product', key: product.id, 'aria-labelledby': product.id },
-            h('div', { className: 'product-title' },
-              h('h3', { id: product.id }, product.name, ' ', product.strength),
-              h('p', null, product.form, ' · ', product.pack),
-            ),
-            h('div', { className: 'offers' },
-              offers.map(offer => h(Offer, { key: offer.branch.id, offer }))),
-          )) : h('p', { className: 'empty' }, 'No encontramos presentaciones con esos filtros.'),
+        results.length ? h('div', { className: 'products' }, results.map(({ product, offers }) =>
+          h(Product, { key: product.id, product, offers })))
+          : h('p', { className: 'empty' }, 'No encontramos presentaciones con esos filtros.'),
       ),
     ),
     h('footer', { className: 'shell footer' }, 'FarmaciaRD · Demo del catálogo público'),
