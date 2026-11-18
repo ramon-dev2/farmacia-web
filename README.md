@@ -2,7 +2,7 @@
 
 Demo estática del catálogo público de FarmaciaRD. Incluye búsqueda por presentación, comparación de precios por sucursal, filtros de disponibilidad y fechas independientes para precio e inventario. Los datos son ficticios. El acceso del personal y la edición de inventario quedan pendientes de integrar con la API y el servicio de identidad del proyecto.
 
-La búsqueda y los filtros de ciudad, sucursal y disponibilidad se aplican a las presentaciones y a sus ofertas. La tarjeta cuenta las sucursales disponibles entre las coincidencias y muestra el menor precio publicado para ese conjunto. Los precios de sucursales agotadas o sin confirmar se pueden consultar en la comparación, donde cada presentación tiene su propio orden de sucursales. Las fechas completas se muestran en la hora de República Dominicana. A partir de siete días se señala la antigüedad de los datos de muestra.
+La búsqueda y los filtros de ciudad, sucursal y disponibilidad registrada se aplican a las presentaciones y a sus ofertas. Los datos de inventario con siete días o más, o sin fecha, quedan sin vigencia confirmada. El precio destacado exige precio e inventario recientes. Cuando solo hay registros anteriores, se muestra el menor precio publicado con disponibilidad registrada como referencia histórica. El orden del catálogo por precio se basa en ese registro. Cada comparación tiene su propio orden y permite abrir «Ver detalles» para consultar horarios y fechas completas en la hora de República Dominicana.
 
 ## Vista local
 
