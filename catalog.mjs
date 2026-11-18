@@ -14,30 +14,87 @@ export const products = [
 ];
 
 export const states = { available: 'Disponible', out: 'Agotado', unknown: 'Sin confirmar' };
+const alphabet = new Intl.Collator('es-DO', { sensitivity: 'base', numeric: true });
+const relative = new Intl.RelativeTimeFormat('es-DO', { numeric: 'always' });
+const day = 24 * 60 * 60 * 1000;
+const staleAfterDays = 7;
 
 function normalize(value) {
-  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  const normalized = value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  return (normalized.match(/\d+(?:[.,]\d+)?\s*(?:mg|ml|g)\b|\d+(?:[.,]\d+)?|\p{L}+/gu) ?? [])
+    .map(token => token.replace(/\s+/g, '').replace(',', '.'));
 }
 
 export function findProducts(query) {
-  const words = normalize(query).split(/\s+/).filter(Boolean);
+  const words = normalize(query);
   return products.filter(({ name, strength, form, pack }) => {
     const description = normalize([name, strength, form, pack].join(' '));
-    return words.every(word => description.includes(word));
+    return words.every(word => description.some(token =>
+      /^\d/.test(word)
+        ? token === word || (/^\d+(?:\.\d+)?$/.test(word) && token.replace(/[a-z]+$/, '') === word)
+        : token.includes(word)
+    ));
   });
 }
 
-export function getOffers(product, branchId, availability, sortBy) {
-  const offers = branches.map((branch, index) => ({
+export function getOffers(product, { city = '', branchId = '', availability = '' } = {}) {
+  return branches.map((branch, index) => ({
     branch,
     price: product.prices[index],
     state: product.states[index],
     priceUpdatedAt: product.prices[index] === null ? null : '2026-10-18T13:00:00Z',
     stockUpdatedAt: product.states[index] === 'unknown' ? null : '2026-10-18T15:30:00Z',
   })).filter(({ branch, state }) =>
-    (!branchId || branch.id === branchId) && (!availability || state === availability)
+    (!city || branch.city === city) && (!branchId || branch.id === branchId) &&
+    (!availability || state === availability)
   );
-  return sortBy === 'price'
-    ? offers.toSorted((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity) || 0)
-    : offers;
+}
+
+function comparePrices(a, b) {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a - b;
+}
+
+function byBranch(a, b) {
+  return alphabet.compare(a.branch.name, b.branch.name);
+}
+
+export function sortOffers(offers, order) {
+  return [...offers].sort((a, b) =>
+    (order === 'price' ? comparePrices(a.price, b.price) : 0) || byBranch(a, b)
+  );
+}
+
+export function summarizeOffers(offers) {
+  const available = offers.filter(offer => offer.state === 'available');
+  const best = sortOffers(available, 'price').find(offer => offer.price !== null) ?? null;
+  return { availableCount: available.length, best };
+}
+
+export function getResults(query, filters, order) {
+  return findProducts(query)
+    .map(product => {
+      const offers = getOffers(product, filters);
+      return { product, offers, ...summarizeOffers(offers) };
+    })
+    .filter(result => result.offers.length)
+    .sort((a, b) =>
+      (order === 'price' ? comparePrices(a.best?.price ?? null, b.best?.price ?? null) : 0) ||
+      alphabet.compare(a.product.name, b.product.name) ||
+      alphabet.compare(a.product.strength, b.product.strength)
+    );
+}
+
+export function getFreshness(value, now = Date.now()) {
+  const timestamp = value ? Date.parse(value) : NaN;
+  if (!Number.isFinite(timestamp)) return null;
+  const minutes = Math.floor(Math.max(0, now - timestamp) / 60000);
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor(minutes / 60);
+  const label = days ? relative.format(-days, 'day')
+    : hours ? relative.format(-hours, 'hour')
+    : minutes ? relative.format(-minutes, 'minute') : 'hace menos de un minuto';
+  return { label, stale: now - timestamp >= staleAfterDays * day };
 }
