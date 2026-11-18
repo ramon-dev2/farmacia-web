@@ -1,6 +1,6 @@
 import { createElement as h, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { branches, getFreshness, getOfferFreshness, getResults, products, sortOffers, states } from './catalog.mjs';
+import { branches, getFreshness, getOfferFreshness, getResults, products, sortOffers, states } from './catalog.mjs?v=dc34b2e';
 
 const currency = new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP' });
 const date = new Intl.DateTimeFormat('es-DO', {
