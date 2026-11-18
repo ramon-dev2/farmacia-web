@@ -42,6 +42,20 @@ button:hover, summary:hover { text-decoration: underline; }
 .results-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; padding-block: .7rem .45rem; color: var(--muted); }
 .products { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: .9rem; }
 .product { display: grid; gap: .85rem; border: 1px solid var(--line); border-radius: .85rem; padding: 1rem; background: #fff; }
+.product-image {
+  aspect-ratio: 1;
+  width: min(100%, 240px);
+  justify-self: center;
+  border-radius: .55rem;
+  background: #edf7f1 var(--product-art, none) no-repeat;
+  background-size: 300% 200%;
+  background-position: var(--art-position, 0 0);
+}
+[data-product="ibuprofeno"] { --art-position: 50% 0; }
+[data-product="loratadina"] { --art-position: 100% 0; }
+[data-product="omeprazol"] { --art-position: 0 100%; }
+[data-product="cetirizina"] { --art-position: 50% 100%; }
+[data-product="acetaminofen-jarabe"] { --art-position: 100% 100%; }
 .product-title { min-height: 7rem; background: linear-gradient(125deg, #edf7f1, #f5faf2); border-radius: .55rem; padding: .85rem; }
 .product-form { display: block; color: var(--green); font-size: .8rem; font-weight: 650; margin-bottom: .35rem; }
 h3 { line-height: 1.2; font-size: 1.22rem; letter-spacing: -.02em; }
