@@ -105,6 +105,11 @@ function Product({ result, now }) {
   const [offerOrder, setOfferOrder] = useState('price');
   const best = bestCurrent ?? bestRecorded;
   const titleId = 'product-' + product.id;
+  const soldOut = offers.every(offer => getOfferFreshness(offer, now).currentState === 'out');
+  const status = currentCount ? 'available' : soldOut ? 'out' : 'unknown';
+  const availabilityLabel = currentCount
+    ? currentCount + (currentCount === 1 ? ' sucursal con inventario reciente' : ' sucursales con inventario reciente')
+    : availableCount ? 'Sin disponibilidad vigente confirmada' : states[status];
 
   return h('article', { className: 'product', 'aria-labelledby': titleId },
     h('div', { className: 'product-heading' },
@@ -116,10 +121,7 @@ function Product({ result, now }) {
       ),
     ),
     h('div', { className: 'product-availability' },
-      h(Status, { state: currentCount ? 'available' : 'unknown' },
-        currentCount
-          ? currentCount + (currentCount === 1 ? ' sucursal con inventario reciente' : ' sucursales con inventario reciente')
-          : 'Sin disponibilidad vigente confirmada'),
+      h(Status, { state: status }, availabilityLabel),
       availableCount !== currentCount && h('p', { className: 'registered-count' },
         'Registro de disponibilidad en ', availableCount, availableCount === 1 ? ' sucursal' : ' sucursales'),
     ),
