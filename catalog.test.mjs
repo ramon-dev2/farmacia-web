@@ -42,7 +42,7 @@ test('distingue el orden de ofertas de la selección del menor precio disponible
 });
 
 test('calcula antigüedad por campo y conserva el umbral de siete días', () => {
-  const [offer] = getOffers(products[0]);
+  const [offer] = getOffers(products.find(({ id }) => id === 'cetirizina'));
   const now = Date.parse('2026-10-25T13:00:00Z');
   assert.deepEqual(getFreshness(offer.priceUpdatedAt, now), { label: 'hace 7 días', stale: true });
   assert.deepEqual(getFreshness(offer.stockUpdatedAt, now), { label: 'hace 6 días', stale: false });
@@ -51,7 +51,8 @@ test('calcula antigüedad por campo y conserva el umbral de siete días', () => 
 });
 
 test('separa las ofertas históricas de las ofertas con precio e inventario recientes', () => {
-  const [central, east, north] = getOffers(products[0]);
+  const [first, east, north] = getOffers(products[0]);
+  const central = { ...first, priceUpdatedAt: '2026-10-18T13:00:00Z', stockUpdatedAt: '2026-10-18T15:30:00Z' };
   const now = Date.parse('2026-10-26T00:00:00Z');
   const recent = '2026-10-24T15:30:00Z';
   const noPrice = { ...central, price: null, priceUpdatedAt: null, stockUpdatedAt: recent };
@@ -66,4 +67,12 @@ test('separa las ofertas históricas de las ofertas con precio e inventario reci
   });
   assert.equal(summarizeOffers([central, { ...fresh, priceUpdatedAt: central.priceUpdatedAt }], now).bestCurrent, null);
   assert.equal(summarizeOffers([central], now).currentCount, 0);
+});
+
+test('solo la cetirizina tiene inventario antiguo en el escenario de muestra actual', () => {
+  const now = Date.parse('2026-11-18T19:52:24Z');
+  const results = getResults('', {}, 'name', now);
+  assert.deepEqual(results.filter(result => !result.currentCount).map(({ product }) => product.id), ['cetirizina']);
+  assert.deepEqual(results.filter(({ offers }) => offers.some(offer => getOfferFreshness(offer, now).stock?.stale))
+    .map(({ product }) => product.id), ['cetirizina']);
 });
