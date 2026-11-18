@@ -38,12 +38,13 @@ export function findProducts(query) {
 }
 
 export function getOffers(product, { city = '', branchId = '', availability = '' } = {}) {
+  const sampleDate = product.id === 'cetirizina' ? '2026-10-18' : '2026-11-18';
   return branches.map((branch, index) => ({
     branch,
     price: product.prices[index],
     state: product.states[index],
-    priceUpdatedAt: product.prices[index] === null ? null : '2026-10-18T13:00:00Z',
-    stockUpdatedAt: product.states[index] === 'unknown' ? null : '2026-10-18T15:30:00Z',
+    priceUpdatedAt: product.prices[index] === null ? null : sampleDate + 'T13:00:00Z',
+    stockUpdatedAt: product.states[index] === 'unknown' ? null : sampleDate + 'T15:30:00Z',
   })).filter(({ branch, state }) =>
     (!city || branch.city === city) && (!branchId || branch.id === branchId) &&
     (!availability || state === availability)
