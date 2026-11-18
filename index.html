@@ -13,12 +13,31 @@
   </script>
 </head>
 <body>
-  <div id="root"><p class="loading" role="status">Cargando el catálogo…</p></div>
-  <noscript>Activa JavaScript para consultar el catálogo.</noscript>
+  <div id="root"></div>
+  <main class="shell startup" id="catalog-loading" hidden>
+    <p role="status">Cargando el catálogo…</p>
+  </main>
+  <main class="shell startup" id="catalog-error" hidden>
+    <h1>No pudimos cargar el catálogo</h1>
+    <p>Comprueba tu conexión e inténtalo de nuevo.</p>
+    <button class="button button-primary" id="retry-load" type="button">Volver a cargar</button>
+  </main>
+  <noscript><p class="shell startup">Activa JavaScript para consultar el catálogo.</p></noscript>
   <script type="module">
-    import('./app.mjs').catch(() => {
-      document.querySelector('.loading')?.replaceChildren('El catálogo no pudo cargarse. Comprueba tu conexión y recarga la página.');
-    });
+    const loading = document.getElementById('catalog-loading');
+    const error = document.getElementById('catalog-error');
+    const retry = document.getElementById('retry-load');
+    loading.hidden = false;
+    retry.addEventListener('click', () => window.location.reload());
+    document.addEventListener('catalog-ready', () => { loading.hidden = true; }, { once: true });
+    function showError() {
+      loading.hidden = true;
+      document.getElementById('root').hidden = true;
+      error.hidden = false;
+      retry.focus();
+    }
+    document.addEventListener('catalog-load-error', showError);
+    import('./app.mjs').catch(showError);
   </script>
 </body>
 </html>
