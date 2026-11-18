@@ -16,8 +16,12 @@ a { color: inherit; }
 .header-inner { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .header a { text-decoration: none; font-weight: 650; }
 .header a:hover { text-decoration: underline; }
-.brand { display: inline-flex; align-items: center; gap: .6rem; font-size: 1.2rem; }
-.brand span { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .55rem; background: var(--green); color: white; }
+.brand { display: inline-flex; align-items: center; padding-block: .35rem; }
+.brand img { display: block; width: auto; height: clamp(60px, 8vw, 84px); }
+.icon { display: inline-block; vertical-align: -.19em; width: 1.05em; height: 1.05em; flex: none; }
+.nav-link, .filter-label, .search button, .results-bar button { display: inline-flex; align-items: center; gap: .4rem; }
+.notice { display: flex; align-items: baseline; gap: .45rem; }
+summary .icon { margin-inline: .2em .35em; }
 .hero { background: radial-gradient(ellipse at top, #e2f6e3, #edf8f3 75%); border-bottom: 1px solid var(--line); }
 .hero-inner { padding-block: clamp(2.5rem, 7vw, 5.2rem); text-align: center; }
 h1 { max-width: 18ch; margin-inline: auto; font-size: clamp(2.2rem, 6.2vw, 4rem); line-height: 1.04; letter-spacing: -.055em; }
